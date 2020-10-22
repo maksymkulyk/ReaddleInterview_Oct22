@@ -9,37 +9,35 @@ import Foundation
 
 class TasksExecutor {
     let resourceHolder = ResourceHolder()
-    func start() {
-        self.startWritingTask(withName: "Task 1")
-        self.startReadingTask(withName: "Task 2")
-        self.startReadingTask(withName: "Task 3")
-        self.startRemovingTask(withName: "Task 4")
-    }
-    private func startWritingTask(withName name: String) {
-        queue(forTaskName: name).async {
-            let chars: [Character] = ["A", "B", "C"]
-            var i = 0
-            while true {
-                self.resourceHolder.append(char: chars[i], fromTask: name)
-                i = (i + 1) % chars.count
+    private let queue1 = TasksExecutor.queue(forTaskName: "Task 1")
+    private let queue2 = TasksExecutor.queue(forTaskName: "Task 2")
+    private let queue3 = TasksExecutor.queue(forTaskName: "Task 3")
+    private let queue4 = TasksExecutor.queue(forTaskName: "Task 4")
+    
+    private let chars: [Character] = ["A", "B", "C"]
+    
+    func start(with index: Int = 0) {
+        queue1.async {
+            self.resourceHolder.append(char: self.chars[index], fromTask: "Task 1")
+            let group = DispatchGroup()
+            self.read(on: self.queue2, in: group, taskName: "Task 2")
+            self.read(on: self.queue3, in: group, taskName: "Task 3")
+            group.notify(queue: self.queue4) {
+                _ = self.resourceHolder.dropFirst(fromTask: "Task 4")
+                self.start(with: (index + 1) % self.chars.count)
             }
         }
     }
-    private func startRemovingTask(withName name: String) {
-        queue(forTaskName: name).async {
-            while true {
-                _ = self.resourceHolder.dropFirst(fromTask: name)
-            }
+    
+    private func read(on queue: DispatchQueue, in group: DispatchGroup, taskName: String) {
+        group.enter()
+        queue.async {
+            _ = self.resourceHolder.first(fromTask: taskName)
+            group.leave()
         }
     }
-    private func startReadingTask(withName name: String) {
-        queue(forTaskName: name).async {
-            while true {
-                _ = self.resourceHolder.first(fromTask: name)
-            }
-        }
-    }
-    private func queue(forTaskName name: String) -> DispatchQueue {
+    
+    private static func queue(forTaskName name: String) -> DispatchQueue {
         return DispatchQueue(label: "com.test.TasksExecutor.\(name)")
     }
 }
